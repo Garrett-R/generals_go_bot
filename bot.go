@@ -169,6 +169,7 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 			is_general := to_tile.Type == gioframework.General
 			is_city := to_tile.Type == gioframework.City
 			outnumber := float64(from_tile.Armies - to_tile.Armies)
+			// Should I translate my heuristic distance from my JS code?
 			dist := float64(game.GetDistance(from, to))
 			dist_from_gen := float64(game.GetDistance(my_general, to))
 
