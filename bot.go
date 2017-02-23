@@ -2,11 +2,18 @@ package main
 
 import (
 	"log"
+	"math"
 	"os"
-	"math/rand"
 	"time"
-
+	"github.com/xarg/gopathfinding"
 	"github.com/andyleap/gioframework"
+)
+
+const (
+	TILE_EMPTY = -1
+	TILE_MOUNTAIN = -2
+	TILE_FOG = -3
+	TILE_FOG_OBSTACLE = -4
 )
 
 func main() {
@@ -54,22 +61,23 @@ func main() {
 				continue
 			}
 
-			if game.TurnCount < 20 {
-				log.Println("Waiting for turn 20...")
+			// Re-enable after debugging...
+			//if game.TurnCount < 20 {
+			//	log.Println("Waiting for turn 20...")
+			//	continue
+			//}
+
+
+			from, to_target, score := GetTileToAttack(game)
+			if from < 0 {
 				continue
 			}
+			path := GetShortestPath(game, from, to_target)
+			to := path[1]
 
-
-			from, to, score := GetTileToAttack(game)
-
-			
-
-
-
-
-
-
-
+			log.Printf("Moving army %v: %v -> %v (Score: %v)",
+				       game.GameMap[from].Armies, game.GetCoordString(from),
+			           game.GetCoordString(to), score)
 			//mine := []int{}
 			//for i, tile := range game.GameMap {
 			//	if tile.Faction == game.PlayerIndex && tile.Armies > 1 {
@@ -96,21 +104,58 @@ func main() {
 	}
 }
 
+func Btoi(b bool) int {
+    if b {
+        return 1
+    }
+    return 0
+}
+
+func Btof(b bool) float64 {
+    if b {
+        return 1.
+    }
+    return 0.
+}
+
+func GetShortestPath(game *gioframework.Game, from, to int) []int {
+	map_data := *pathfinding.NewMapData(game.Height, game.Width)
+	for i := 0; i <  game.Height; i++ {
+		for j := 0; j < game.Width; j++ {
+			map_data[i][j] = Btoi(!game.Walkable(game.GetIndex(i, j)))
+		}
+	}
+	map_data[game.GetRow(from)][game.GetCol(from)] = pathfinding.START
+	map_data[game.GetRow(to)][game.GetCol(to)] = pathfinding.STOP
+
+	graph := pathfinding.NewGraph(&map_data)
+	nodes_path := pathfinding.Astar(graph)
+	path := []int{}
+	for _, node := range nodes_path {
+		path = append(path, game.GetIndex(node.X, node.Y))
+	}
+	return path
+}
+
 func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 
 	best_from := -1
 	best_to := -1
-	best_score := 0.
+	best_total_score := 0.
+	var best_scores map[string]float64
+
+	my_general := game.Generals[game.PlayerIndex]
 
 
-	for from_idx, from_tile := range game.GameMap {
+	for from, from_tile := range game.GameMap {
 		if from_tile.Faction != game.PlayerIndex || from_tile.Armies < 2 {
 			continue
 		}
 		//my_army_size := from_tile.Armies
 
-		for to_idx, to_tile := range game.GameMap {
-			if !game.Walkable(to_idx) {
+		for to, to_tile := range game.GameMap {
+			//log.Println(from, to)
+			if to_tile.Faction < -1 {
 				continue
 			}
 			// Note: I'm not dealing with impossible to reach tiles for now
@@ -118,14 +163,52 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 			if to_tile.Faction == game.PlayerIndex {
 				continue
 			}
-			score := 0.5
 
-			if score > best_score {
-				best_from = from_idx
-				best_to = to_idx
-				best_score = score
+			is_empty := to_tile.Faction == TILE_EMPTY
+			is_enemy := to_tile.Faction != game.PlayerIndex && to_tile.Faction >= 0
+			is_general := to_tile.Type == gioframework.General
+			is_city := to_tile.Type == gioframework.City
+			outnumber := float64(from_tile.Armies - to_tile.Armies)
+			dist := float64(game.GetDistance(from, to))
+			dist_from_gen := float64(game.GetDistance(my_general, to))
+
+			scores := make(map[string]float64)
+
+			scores["outnumber_score"] = Truncate(outnumber / 300, 0., 0.2)
+			scores["outnumbered_penalty"] = -0.1 * Btof(outnumber < 2)
+			log.Printf("dist_from_gen: %v, %v", dist_from_gen, Btof(is_enemy))
+			scores["general_threat_score"] = (0.2 * math.Pow(dist_from_gen, -0.1)) * Btof(is_enemy)
+			scores["dist_penalty"] = Truncate(-0.2 * dist / 30, -0.2, 0)
+			scores["dist_gt_army_penalty"] = -0.1 * Btof(from_tile.Armies < int(dist))
+			scores["is_enemy_score"] = 0.1 * Btof(is_enemy)
+			scores["close_city_score"] = 0.1 * Btof(is_city) * math.Pow(dist_from_gen, -0.5)
+			scores["enemy_gen_score"] = 0.1 * Btof(is_general) * Btof(is_enemy)
+			scores["empty_score"] = 0.05 * Btof(is_empty)
+
+			total_score := 0.
+			for k, score := range scores {
+				log.Printf("%v, %v", k, score)
+				total_score += score
 			}
+			log.Printf("total score is: %v", total_score)
+
+			if total_score > best_total_score {
+				best_scores = scores
+				best_total_score = total_score
+				best_from = from
+				best_to = to
+			}
+
 		}
 	}
-	return best_from, best_to, best_score
+	log.Println("Good")
+	for name, score := range best_scores {
+		log.Printf("%v: %v\n", name, score)
+	}
+	return best_from, best_to, best_total_score
+}
+
+
+func Truncate(val, min, max float64) float64 {
+    return math.Min(math.Max(val, min), max)
 }
