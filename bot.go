@@ -60,12 +60,13 @@ func main() {
 			if game.QueueLength() > 0 {
 				continue
 			}
+			log.Printf("---------------------\nTurn: %v", game.TurnCount)
 
 			// Re-enable after debugging...
-			//if game.TurnCount < 20 {
-			//	log.Println("Waiting for turn 20...")
-			//	continue
-			//}
+			if game.TurnCount < 20 {
+				log.Println("Waiting for turn 20...")
+				continue
+			}
 
 
 			from, to_target, score := GetTileToAttack(game)
@@ -73,33 +74,13 @@ func main() {
 				continue
 			}
 			path := GetShortestPath(game, from, to_target)
-			to := path[1]
-
-			log.Printf("Moving army %v: %v -> %v (Score: %v)",
-				       game.GameMap[from].Armies, game.GetCoordString(from),
-			           game.GetCoordString(to), score)
-			//mine := []int{}
-			//for i, tile := range game.GameMap {
-			//	if tile.Faction == game.PlayerIndex && tile.Armies > 1 {
-			//		mine = append(mine, i)
-			//	}
-			//}
-			//if len(mine) == 0 {
-			//	continue
-			//}
-			//cell := rand.Intn(len(mine))
-			//move := []int{}
-			//for _, adjacent := range game.GetAdjacents(mine[cell]) {
-			//	if game.Walkable(adjacent) {
-			//		move = append(move, adjacent)
-			//	}
-			//}
-			//if len(move) == 0 {
-			//	continue
-			//}
-			//movecell := rand.Intn(len(move))
-			game.Attack(from, to, false)
-
+			//log.Printf("Starting army: %v", game.GameMap[path[0]].Armies)
+			for i := 0; i < len(path) - 1; i++ {
+				log.Printf("Move army: %v -> %v (Score: %.2f) (Armies: %v -> %v)",
+					game.GetCoordString(path[i]), game.GetCoordString(path[i+1]),
+					score, game.GameMap[path[i]].Armies, game.GameMap[path[i+1]].Armies)
+				game.Attack(path[i], path[i+1], false)
+			}
 		}
 	}
 }
@@ -177,7 +158,6 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 
 			scores["outnumber_score"] = Truncate(outnumber / 300, 0., 0.2)
 			scores["outnumbered_penalty"] = -0.1 * Btof(outnumber < 2)
-			log.Printf("dist_from_gen: %v, %v", dist_from_gen, Btof(is_enemy))
 			scores["general_threat_score"] = (0.2 * math.Pow(dist_from_gen, -0.1)) * Btof(is_enemy)
 			scores["dist_penalty"] = Truncate(-0.2 * dist / 30, -0.2, 0)
 			scores["dist_gt_army_penalty"] = -0.1 * Btof(from_tile.Armies < int(dist))
@@ -187,11 +167,10 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 			scores["empty_score"] = 0.05 * Btof(is_empty)
 
 			total_score := 0.
-			for k, score := range scores {
-				log.Printf("%v, %v", k, score)
+			for _, score := range scores {
+				//log.Printf("%v, %v", k, score)
 				total_score += score
 			}
-			log.Printf("total score is: %v", total_score)
 
 			if total_score > best_total_score {
 				best_scores = scores
@@ -202,10 +181,11 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 
 		}
 	}
-	log.Println("Good")
 	for name, score := range best_scores {
 		log.Printf("%v: %v\n", name, score)
 	}
+	log.Printf("Total score: %v", best_total_score)
+	log.Printf("From:%v To:%v", game.GetCoordString(best_from), game.GetCoordString(best_to))
 	return best_from, best_to, best_total_score
 }
 
