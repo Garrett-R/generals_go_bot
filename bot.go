@@ -7,6 +7,7 @@ import (
 	"time"
 	"github.com/xarg/gopathfinding"
 	"github.com/andyleap/gioframework"
+	"fmt"
 )
 
 const (
@@ -49,6 +50,7 @@ func main() {
 			log.Println("Lost game...")
 			done = true
 		}
+
 		for !started {
 			time.Sleep(1 * time.Second)
 		}
@@ -60,7 +62,7 @@ func main() {
 			if game.QueueLength() > 0 {
 				continue
 			}
-			log.Printf("---------------------\nTurn: %v", game.TurnCount)
+			logTurnData(game)
 
 			// Re-enable after debugging...
 			if game.TurnCount < 20 {
@@ -82,8 +84,26 @@ func main() {
 				game.Attack(path[i], path[i+1], false)
 			}
 		}
+		log.Printf("Replay available at: http://bot.generals.io/replays/%v", game.ReplayID)
 	}
 }
+
+
+func logTurnData(g *gioframework.Game) {
+	log.Println("------------------------------------------")
+	log.Printf("Turn: %v (UI Turn: %v)", g.TurnCount, float64(g.TurnCount)/2.)
+	for _, s := range g.Scores {
+		var player_name string
+		if s.Index == g.PlayerIndex {
+			player_name = "Me"
+		} else {
+			player_name = fmt.Sprintf("Opponent %v", s.Index)
+		}
+		log.Printf("%10v: Tiles: %v, Army: %v", player_name, s.Tiles, s.Armies)
+
+	}
+}
+
 
 func Btoi(b bool) int {
     if b {
@@ -153,6 +173,9 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 			// Should I translate my heuristic distance from my JS code?
 			dist := float64(game.GetDistance(from, to))
 			dist_from_gen := float64(game.GetDistance(my_general, to))
+			center := game.GetIndex(game.Width / 2, game.Height / 2)
+			dist_from_center := float64(game.GetDistance(center, to))
+			centerness := 1. - dist_from_center / float64(game.Width / 2)
 
 			scores := make(map[string]float64)
 
@@ -165,10 +188,11 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 			scores["close_city_score"] = 0.1 * Btof(is_city) * math.Pow(dist_from_gen, -0.5)
 			scores["enemy_gen_score"] = 0.1 * Btof(is_general) * Btof(is_enemy)
 			scores["empty_score"] = 0.05 * Btof(is_empty)
+			// Generally a good strategy to take the center of the board
+			scores["centerness_score"] = 0.05 * centerness
 
 			total_score := 0.
 			for _, score := range scores {
-				//log.Printf("%v, %v", k, score)
 				total_score += score
 			}
 
