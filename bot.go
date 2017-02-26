@@ -72,8 +72,8 @@ func main() {
 			logTurnData(game)
 
 			// Re-enable after debugging...
-			if game.TurnCount < 20 {
-				log.Println("Waiting for turn 20...")
+			if game.TurnCount < 30 {
+				log.Println("Waiting for turn 30...")
 				continue
 			}
 
@@ -131,6 +131,46 @@ func Btof(b bool) float64 {
         return 1.
     }
     return 0.
+}
+
+
+func getHeuristicPathDistance(game *gioframework.Game, from, to int)  (float64) {
+	/* Would have preferred to use A* to get actual path distance, but that's
+     prohibitvely expensive. (I need to calculate this many times per turn)
+      */
+	base_distance := game.GetDistance(from, to)
+	tiles_in_square := getTilesInSquare(game, from, to)
+	num_obstacles := 0
+	for _, tile := range tiles_in_square {
+		num_obstacles += Btoi(game.Walkable(tile))
+	}
+	total_area := len(tiles_in_square)
+	obstacle_ratio := num_obstacles / total_area
+	// Not sure this is the best heuristic, but it's simple, so I'll use it for
+    // now
+	return float64(base_distance) * (1. + 2.0 * float64(obstacle_ratio))
+}
+
+
+func getTilesInSquare(game *gioframework.Game, i, j int) ([]int) {
+	// Gets index of all tiles in a square defined by two diagonally opposed
+	// corners
+	row_i := game.GetRow(i)
+	col_i := game.GetCol(i)
+	row_j := game.GetRow(j)
+	col_j := game.GetCol(j)
+
+	row_limits := []int{row_i, row_j}
+	col_limits := []int{col_i, col_j}
+	sort.Ints(row_limits)
+	sort.Ints(col_limits)
+	var tiles []int
+	for row := row_limits[0]; row < row_limits[1] + 1; row++ {
+		for col := col_limits[0]; col < col_limits[1] + 1; col++ {
+			tiles = append(tiles, game.GetIndex(row, col))
+		}
+	}
+	return tiles
 }
 
 func GetShortestPath(game *gioframework.Game, from, to int) []int {
@@ -191,10 +231,10 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 			is_city := to_tile.Type == gioframework.City
 			outnumber := float64(from_tile.Armies - to_tile.Armies)
 			// Should I translate my heuristic distance from my JS code?
-			dist := float64(game.GetDistance(from, to))
-			dist_from_gen := float64(game.GetDistance(my_general, to))
+			dist := getHeuristicPathDistance(game, from, to)
+			dist_from_gen := getHeuristicPathDistance(game, my_general, to)
 			center := game.GetIndex(game.Width / 2, game.Height / 2)
-			dist_from_center := float64(game.GetDistance(center, to))
+			dist_from_center := getHeuristicPathDistance(game, center, to)
 			centerness := 1. - dist_from_center / float64(game.Width / 2)
 
 			scores := make(map[string]float64)
