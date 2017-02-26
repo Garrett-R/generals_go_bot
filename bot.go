@@ -18,6 +18,12 @@ const (
 	TILE_FOG_OBSTACLE = -4
 )
 
+// If we allow too few future moves, then slow network means we could miss turns
+// If we allow too many future moves, then bot is less adaptive to changing
+// conditions
+const MAX_PLANNED_MOVES = 6
+
+
 func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), "Terminator")
 	go client.Run()
@@ -71,14 +77,13 @@ func main() {
 				continue
 			}
 
-
 			from, to_target, score := GetTileToAttack(game)
 			if from < 0 {
 				continue
 			}
 			path := GetShortestPath(game, from, to_target)
-			//log.Printf("Starting army: %v", game.GameMap[path[0]].Armies)
-			for i := 0; i < len(path) - 1; i++ {
+			max_num_moves := min(len(path) - 1, MAX_PLANNED_MOVES)
+			for i := 0; i < max_num_moves; i++ {
 				log.Printf("Move army: %v -> %v (Score: %.2f) (Armies: %v -> %v)",
 					game.GetCoordString(path[i]), game.GetCoordString(path[i+1]),
 					score, game.GameMap[path[i]].Armies, game.GameMap[path[i+1]].Armies)
@@ -106,6 +111,12 @@ func logTurnData(g *gioframework.Game) {
 	}
 }
 
+func min(a, b int) int {
+    if a < b {
+        return a
+    }
+    return b
+}
 
 func Btoi(b bool) int {
     if b {
@@ -209,7 +220,7 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 	}
 	logSortedScores(best_scores)
 
-	log.Printf("Total score: %v", best_total_score)
+	log.Printf("Total score: %.2f", best_total_score)
 	log.Printf("From:%v To:%v", game.GetCoordString(best_from), game.GetCoordString(best_to))
 	return best_from, best_to, best_total_score
 }
