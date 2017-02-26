@@ -8,6 +8,7 @@ import (
 	"github.com/xarg/gopathfinding"
 	"github.com/andyleap/gioframework"
 	"fmt"
+	"sort"
 )
 
 const (
@@ -18,7 +19,6 @@ const (
 )
 
 func main() {
-
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), "Terminator")
 	go client.Run()
 
@@ -28,6 +28,7 @@ func main() {
 		var game *gioframework.Game
 		if os.Getenv("REAL_GAME") == "true" {
 			game = client.Join1v1()
+			log.Println("Waiting for opponent...")
 		} else {
 			game_id := "bot_testing_game"
 			game = client.JoinCustomGame(game_id)
@@ -92,6 +93,7 @@ func main() {
 func logTurnData(g *gioframework.Game) {
 	log.Println("------------------------------------------")
 	log.Printf("Turn: %v (UI Turn: %v)", g.TurnCount, float64(g.TurnCount)/2.)
+
 	for _, s := range g.Scores {
 		var player_name string
 		if s.Index == g.PlayerIndex {
@@ -205,12 +207,25 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 
 		}
 	}
-	for name, score := range best_scores {
-		log.Printf("%v: %v\n", name, score)
-	}
+	logSortedScores(best_scores)
+
 	log.Printf("Total score: %v", best_total_score)
 	log.Printf("From:%v To:%v", game.GetCoordString(best_from), game.GetCoordString(best_to))
 	return best_from, best_to, best_total_score
+}
+
+func logSortedScores(scores map[string]float64) {
+	keys := make([]string, len(scores))
+
+	i := 0
+	for k := range scores {
+		keys[i] = k
+		i++
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		log.Printf("%v: %.3f\n", k, scores[k])
+	}
 }
 
 
