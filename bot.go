@@ -215,7 +215,6 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 		//my_army_size := from_tile.Armies
 
 		for to, to_tile := range game.GameMap {
-			//log.Println(from, to)
 			if to_tile.Faction < -1 {
 				continue
 			}
@@ -282,7 +281,7 @@ func logSortedScores(scores map[string]float64) {
 	}
 	sort.Strings(keys)
 	for _, k := range keys {
-		log.Printf("%v: %.3f\n", k, scores[k])
+		log.Printf("%20v: %.3f\n", k, scores[k])
 	}
 }
 
