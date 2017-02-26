@@ -25,7 +25,7 @@ const MAX_PLANNED_MOVES = 6
 
 
 func main() {
-	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), "Terminator")
+	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
 	go client.Run()
 
 	num_games_to_play := 1
