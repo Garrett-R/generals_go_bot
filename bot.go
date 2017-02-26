@@ -109,6 +109,7 @@ func logTurnData(g *gioframework.Game) {
 		log.Printf("%10v: Tiles: %v, Army: %v", player_name, s.Tiles, s.Armies)
 
 	}
+	log.Println("------------------------------------------")
 }
 
 func min(a, b int) int {
@@ -134,9 +135,15 @@ func Btof(b bool) float64 {
 
 func GetShortestPath(game *gioframework.Game, from, to int) []int {
 	map_data := *pathfinding.NewMapData(game.Height, game.Width)
-	for i := 0; i <  game.Height; i++ {
-		for j := 0; j < game.Width; j++ {
-			map_data[i][j] = Btoi(!game.Walkable(game.GetIndex(i, j)))
+	for row := 0; row <  game.Height; row++ {
+		for col := 0; col < game.Width; col++ {
+			i := game.GetIndex(row, col)
+			tile := game.GameMap[i]
+			// We don't want to accidentally attack cities on route to
+			// somewhere else.  Note: if it is the final destination, it'll be
+			// changed
+			not_my_city := tile.Type == gioframework.City && tile.Faction != game.PlayerIndex
+			map_data[row][col] = Btoi(!game.Walkable(i) || not_my_city)
 		}
 	}
 	map_data[game.GetRow(from)][game.GetCol(from)] = pathfinding.START
@@ -194,10 +201,10 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 
 			scores["outnumber_score"] = Truncate(outnumber / 300, 0., 0.2)
 			scores["outnumbered_penalty"] = -0.1 * Btof(outnumber < 2)
-			scores["general_threat_score"] = (0.2 * math.Pow(dist_from_gen, -0.1)) * Btof(is_enemy)
+			scores["general_threat_score"] = (0.2 * math.Pow(dist_from_gen, -0.7)) * Btof(is_enemy)
 			scores["dist_penalty"] = Truncate(-0.2 * dist / 30, -0.2, 0)
 			scores["dist_gt_army_penalty"] = -0.1 * Btof(from_tile.Armies < int(dist))
-			scores["is_enemy_score"] = 0.1 * Btof(is_enemy)
+			scores["is_enemy_score"] = 0.05 * Btof(is_enemy)
 			scores["close_city_score"] = 0.1 * Btof(is_city) * math.Pow(dist_from_gen, -0.5)
 			scores["enemy_gen_score"] = 0.1 * Btof(is_general) * Btof(is_enemy)
 			scores["empty_score"] = 0.05 * Btof(is_empty)
