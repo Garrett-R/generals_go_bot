@@ -3,12 +3,16 @@ package main
 import (
 	"log"
 	"math"
+	"math/rand"
 	"os"
 	"time"
 	"github.com/xarg/gopathfinding"
 	"github.com/andyleap/gioframework"
 	"fmt"
 	"sort"
+	"io"
+	"path"
+	"strconv"
 )
 
 const (
@@ -28,9 +32,18 @@ func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
 	go client.Run()
 
+	log_dir := "log"
+	_ = os.Mkdir(log_dir, os.ModePerm)
+
 	num_games_to_play := 1
 
 	for i := 0; i < num_games_to_play; i++ {
+		log_file := path.Join(log_dir, "log_" + strconv.Itoa(rand.Intn(10000)))
+		logFile, err := os.OpenFile(log_file, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0666)
+		check(err)
+		mw := io.MultiWriter(os.Stdout, logFile)
+		log.SetOutput(mw)
+
 		var game *gioframework.Game
 		if os.Getenv("REAL_GAME") == "true" {
 			game = client.Join1v1()
@@ -110,6 +123,12 @@ func logTurnData(g *gioframework.Game) {
 
 	}
 	log.Println("------------------------------------------")
+}
+
+func check(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
 
 func min(a, b int) int {
