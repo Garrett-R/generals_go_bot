@@ -26,7 +26,7 @@ const (
 // If we allow too many future moves, then bot is less adaptive to changing
 // conditions
 const MAX_PLANNED_MOVES = 6
-const NUM_GAMES_TO_PLAY = 1
+const NUM_GAMES_TO_PLAY = 30
 
 func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
@@ -36,9 +36,10 @@ func main() {
 		setupLogging()
 
 		log.Printf("---------- Game #%v/%v -----------", i+1, NUM_GAMES_TO_PLAY)
+		real_game := os.Getenv("REAL_GAME") == "true"
 
 		var game *gioframework.Game
-		if os.Getenv("REAL_GAME") == "true" {
+		if real_game {
 			game = client.Join1v1()
 			log.Println("Waiting for opponent...")
 		} else {
@@ -76,15 +77,15 @@ func main() {
 			if game.QueueLength() > 0 {
 				continue
 			}
-			logTurnData(game)
-
 			// Re-enable after debugging...
-			if game.TurnCount < 30 {
-				log.Println("Waiting for turn 30...")
+			if real_game && game.TurnCount < 30 {
+				//log.Println("Waiting for turn 30...")
 				continue
 			}
 
-			from, to_target, score := GetTileToAttack(game)
+			logTurnData(game)
+
+			from, to_target := GetBestMove(game)
 			if from < 0 {
 				continue
 			}
@@ -96,9 +97,9 @@ func main() {
 
 			max_num_moves := min(len(path) - 1, MAX_PLANNED_MOVES)
 			for i := 0; i < max_num_moves; i++ {
-				log.Printf("Move army: %v -> %v (Score: %.2f) (Armies: %v -> %v)",
+				log.Printf("Move army: %v -> %v  (Armies: %v -> %v)",
 					game.GetCoordString(path[i]), game.GetCoordString(path[i+1]),
-					score, game.GameMap[path[i]].Armies, game.GameMap[path[i+1]].Armies)
+					game.GameMap[path[i]].Armies, game.GameMap[path[i+1]].Armies)
 				game.Attack(path[i], path[i+1], false)
 			}
 		}
@@ -231,7 +232,7 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 	return path
 }
 
-func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
+func GetBestMove(game *gioframework.Game) (int, int) {
 
 	best_from := -1
 	best_to := -1
@@ -240,7 +241,7 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 
 	my_general := game.Generals[game.PlayerIndex]
 
-
+	/// First check for attack
 	for from, from_tile := range game.GameMap {
 		if from_tile.Faction != game.PlayerIndex || from_tile.Armies < 2 {
 			continue
@@ -271,7 +272,7 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 
 			scores := make(map[string]float64)
 
-			scores["outnumber_score"] = Truncate(outnumber / 300, 0., 0.2)
+			scores["outnumber_score"] = Truncate(outnumber / 300, 0., 0.2) * Btof(is_enemy)
 			scores["outnumbered_penalty"] = -0.1 * Btof(outnumber < 2)
 			scores["general_threat_score"] = (0.2 * math.Pow(dist_from_gen, -0.7)) * Btof(is_enemy)
 			scores["dist_penalty"] = Truncate(-0.2 * dist / 30, -0.2, 0)
@@ -297,11 +298,47 @@ func GetTileToAttack(game *gioframework.Game) (int, int, float64) {
 
 		}
 	}
+
 	logSortedScores(best_scores)
 
 	log.Printf("Total score: %.2f", best_total_score)
 	log.Printf("From:%v To:%v", game.GetCoordString(best_from), game.GetCoordString(best_to))
-	return best_from, best_to, best_total_score
+
+	/////////////// Then check for consolidation  //////////////////////////////
+	consol_score := getConsolidationScore(game)
+	log.Printf("Consolidation score:%.2f", consol_score)
+
+	tiles := getTilesSortedOnArmies(game)
+	if len(tiles) > 10 && consol_score > best_total_score {
+		largest_tile := tiles[0]
+		for _, tile := range tiles[:5] {
+			log.Printf("Army ranked: %v", game.GameMap[tile].Armies)
+		}
+		highest_av_army := 0.
+		for _, from := range tiles[1:] {
+			if game.GameMap[from].Armies < 2 {
+				continue
+			}
+			// Warning: this path could cut through enemy territory!  Keep an
+			// eye for this
+			path_ := GetShortestPath(game, from, largest_tile)
+			armies := 0
+			for _, i := range path_ {
+				armies += game.GameMap[i].Armies
+			}
+			av_army := float64(armies) / float64(len(path_))
+			if av_army > highest_av_army {
+				highest_av_army = av_army
+				best_from = from
+			}
+		}
+		if highest_av_army > 0{
+			best_to = largest_tile
+			log.Println("Consolidating...")
+		}
+	}
+
+	return best_from, best_to
 }
 
 func logSortedScores(scores map[string]float64) {
@@ -320,4 +357,78 @@ func logSortedScores(scores map[string]float64) {
 
 func Truncate(val, min, max float64) float64 {
     return math.Min(math.Max(val, min), max)
+}
+
+func getConsolidationScore(game *gioframework.Game) float64 {
+	gini := getArmyGiniCoefficient(game)
+	total_army := float64(game.Scores[game.PlayerIndex].Armies)
+	log.Printf("Gini coefficient: %.2f", gini)
+	log.Printf("Total army: %v", total_army)
+	return (0.5 - gini) * Truncate(total_army / 500., 0.5, 2.)
+}
+
+func getArmyGiniCoefficient(game *gioframework.Game) (float64) {
+	movable_armies := []int{}
+	for i := 0; i < game.Height * game.Width; i++ {
+		tile := game.GameMap[i]
+		if tile.Faction == game.PlayerIndex {
+			movable_armies = append(movable_armies, tile.Armies - 1)
+		}
+	}
+	//log.Printf("movable_armies: %v", movable_armies)
+	return giniCoefficient(movable_armies)
+}
+
+// giniCoefficient is calculated as described here:
+// https://en.wikipedia.org/wiki/Gini_coefficient#Alternate_expressions
+func giniCoefficient(nums []int) (float64) {
+	sort.Ints(nums)
+	n := len(nums)
+	denom := 0
+	for _, num := range nums {
+		denom += num
+	}
+	denom *= n
+	numer := 0
+	for i, num := range nums {
+		numer += (i + 1) * num
+	}
+	numer *= 2
+	return float64(numer) / float64(denom) - float64(n + 1) / float64(n)
+}
+
+func getTilesSortedOnArmies(game *gioframework.Game) []int {
+	tile_to_army := make(map[int]int)
+	for i := 0; i < game.Height * game.Width; i++ {
+		tile := game.GameMap[i]
+		if tile.Faction == game.PlayerIndex {
+			tile_to_army[i] = tile.Armies
+		}
+	}
+	largest_army_ties := sortKeysByValues(tile_to_army, true)
+	return largest_army_ties
+}
+
+func sortKeysByValues(m map[int]int, reversed bool) []int {
+	n := map[int][]int{}
+	var a []int
+	for k, v := range m {
+		n[v] = append(n[v], k)
+	}
+	for v := range n {
+		a = append(a, v)
+	}
+	keys := []int{}
+	if reversed {
+		sort.Sort(sort.Reverse(sort.IntSlice(a)))
+	} else {
+		sort.Sort(sort.IntSlice(a))
+	}
+
+	for _, v := range a {
+		for _, k := range n[v] {
+			keys = append(keys, k)
+		}
+	}
+	return keys
 }
