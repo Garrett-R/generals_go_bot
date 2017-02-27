@@ -89,6 +89,11 @@ func main() {
 				continue
 			}
 			path := GetShortestPath(game, from, to_target)
+			if len(path) == 0 {
+				log.Printf("Registering impossible tile: %v", game.GetCoordString(to_target))
+				game.ImpossibleTiles[to_target] = true
+			}
+
 			max_num_moves := min(len(path) - 1, MAX_PLANNED_MOVES)
 			for i := 0; i < max_num_moves; i++ {
 				log.Printf("Move army: %v -> %v (Score: %.2f) (Armies: %v -> %v)",
@@ -211,7 +216,7 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 			// somewhere else.  Note: if it is the final destination, it'll be
 			// changed
 			not_my_city := tile.Type == gioframework.City && tile.Faction != game.PlayerIndex
-			map_data[row][col] = Btoi(!game.Walkable(i) || not_my_city)
+			map_data[row][col] = Btoi(!game.Walkable(i) || not_my_city || game.ImpossibleTiles[i])
 		}
 	}
 	map_data[game.GetRow(from)][game.GetCol(from)] = pathfinding.START
