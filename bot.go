@@ -26,23 +26,16 @@ const (
 // If we allow too many future moves, then bot is less adaptive to changing
 // conditions
 const MAX_PLANNED_MOVES = 6
-
+const NUM_GAMES_TO_PLAY = 1
 
 func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
 	go client.Run()
 
-	log_dir := "log"
-	_ = os.Mkdir(log_dir, os.ModePerm)
+	for i := 0; i < NUM_GAMES_TO_PLAY; i++ {
+		setupLogging()
 
-	num_games_to_play := 1
-
-	for i := 0; i < num_games_to_play; i++ {
-		log_file := path.Join(log_dir, "log_" + strconv.Itoa(rand.Intn(10000)))
-		logFile, err := os.OpenFile(log_file, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0666)
-		check(err)
-		mw := io.MultiWriter(os.Stdout, logFile)
-		log.SetOutput(mw)
+		log.Printf("---------- Game #%v/%v -----------", i+1, NUM_GAMES_TO_PLAY)
 
 		var game *gioframework.Game
 		if os.Getenv("REAL_GAME") == "true" {
@@ -59,6 +52,7 @@ func main() {
 		started := false
 		game.Start = func(playerIndex int, users []string) {
 			log.Println("Game started with ", users)
+			log.Printf("Replay available at: http://bot.generals.io/replays/%v", game.ReplayID)
 			started = true
 		}
 		done := false
@@ -107,6 +101,18 @@ func main() {
 	}
 }
 
+func setupLogging() {
+	log_dir := "log"
+	_ = os.Mkdir(log_dir, os.ModePerm)
+
+	rand.Seed(time.Now().UTC().UnixNano())
+	log_file := path.Join(log_dir, "log_" + strconv.Itoa(rand.Intn(10000)))
+	logFile, err := os.OpenFile(log_file, os.O_CREATE | os.O_APPEND | os.O_RDWR, 0666)
+	check(err)
+
+	mw := io.MultiWriter(os.Stdout, logFile)
+	log.SetOutput(mw)
+}
 
 func logTurnData(g *gioframework.Game) {
 	log.Println("------------------------------------------")
@@ -121,6 +127,9 @@ func logTurnData(g *gioframework.Game) {
 		}
 		log.Printf("%10v: Tiles: %v, Army: %v", player_name, s.Tiles, s.Armies)
 
+	}
+	if g.TurnCount < 10 {
+		log.Printf("My General at: %v", g.GetCoordString(g.Generals[g.PlayerIndex]))
 	}
 	log.Println("------------------------------------------")
 }
@@ -303,7 +312,6 @@ func logSortedScores(scores map[string]float64) {
 		log.Printf("%20v: %.3f\n", k, scores[k])
 	}
 }
-
 
 func Truncate(val, min, max float64) float64 {
     return math.Min(math.Max(val, min), max)

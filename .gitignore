@@ -1,5 +1,9 @@
 pkg
 log
+bin
+# godebug stuff
+mailgun
+golang_org
 
 .idea
 continue_bot.txt
