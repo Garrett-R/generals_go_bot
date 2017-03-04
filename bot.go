@@ -359,7 +359,7 @@ func getConsolidationScore(game *gioframework.Game) float64 {
 	totalArmy := float64(game.Scores[game.PlayerIndex].Armies)
 	log.Printf("Gini coefficient: %.2f", gini)
 	log.Printf("Total army: %v", totalArmy)
-	return (0.5 - gini) * Truncate(totalArmy/500., 0.5, 2.)
+	return (0.65 - gini) * Truncate(totalArmy/500., 0.5, 2.)
 }
 
 func getArmyGiniCoefficient(game *gioframework.Game) float64 {
