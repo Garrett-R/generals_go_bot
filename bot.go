@@ -16,36 +16,36 @@ import (
 )
 
 const (
-	TILE_EMPTY        = -1
-	TILE_MOUNTAIN     = -2
-	TILE_FOG          = -3
-	TILE_FOG_OBSTACLE = -4
+	TileEmpty       = -1
+	TileMountain    = -2
+	TileFog         = -3
+	TileFogObstacle = -4
 )
 
 // If we allow too few future moves, then slow network means we could miss turns
 // If we allow too many future moves, then bot is less adaptive to changing
 // conditions
-const MAX_PLANNED_MOVES = 6
-const NUM_GAMES_TO_PLAY = 30
+const MaxPlannedMoves = 6
+const NumGamesToPlay = 30
 
 func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
 	go client.Run()
 
-	for i := 0; i < NUM_GAMES_TO_PLAY; i++ {
+	for i := 0; i < NumGamesToPlay; i++ {
 		setupLogging()
 
-		log.Printf("---------- Game #%v/%v -----------", i+1, NUM_GAMES_TO_PLAY)
-		real_game := os.Getenv("REAL_GAME") == "true"
+		log.Printf("---------- Game #%v/%v -----------", i+1, NumGamesToPlay)
+		realGame := os.Getenv("REAL_GAME") == "true"
 
 		var game *gioframework.Game
-		if real_game {
+		if realGame {
 			game = client.Join1v1()
 			log.Println("Waiting for opponent...")
 		} else {
-			game_id := "bot_testing_game"
-			game = client.JoinCustomGame(game_id)
-			url := "http://bot.generals.io/games/" + game_id
+			gameId := "bot_testing_game"
+			game = client.JoinCustomGame(gameId)
+			url := "http://bot.generals.io/games/" + gameId
 			log.Printf("Joined custom game, go to: %v", url)
 			game.SetForceStart(true)
 		}
@@ -78,7 +78,7 @@ func main() {
 				continue
 			}
 			// Re-enable after debugging...
-			if real_game && game.TurnCount < 30 {
+			if realGame && game.TurnCount < 30 {
 				//log.Println("Waiting for turn 30...")
 				continue
 			}
@@ -95,7 +95,7 @@ func main() {
 				game.ImpossibleTiles[to_target] = true
 			}
 
-			max_num_moves := min(len(path)-1, MAX_PLANNED_MOVES)
+			max_num_moves := min(len(path)-1, MaxPlannedMoves)
 			for i := 0; i < max_num_moves; i++ {
 				log.Printf("Move army: %v -> %v  (Armies: %v -> %v)",
 					game.GetCoordString(path[i]), game.GetCoordString(path[i+1]),
@@ -112,8 +112,8 @@ func setupLogging() {
 	_ = os.Mkdir(log_dir, os.ModePerm)
 
 	rand.Seed(time.Now().UTC().UnixNano())
-	log_file := path.Join(log_dir, "log_"+strconv.Itoa(rand.Intn(10000)))
-	logFile, err := os.OpenFile(log_file, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
+	logFile := path.Join(log_dir, "log_"+strconv.Itoa(rand.Intn(10000)))
+	logFile, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
 	check(err)
 
 	mw := io.MultiWriter(os.Stdout, logFile)
@@ -125,13 +125,13 @@ func logTurnData(g *gioframework.Game) {
 	log.Printf("Turn: %v (UI Turn: %v)", g.TurnCount, float64(g.TurnCount)/2.)
 
 	for _, s := range g.Scores {
-		var player_name string
+		var playerName string
 		if s.Index == g.PlayerIndex {
-			player_name = "Me"
+			playerName = "Me"
 		} else {
-			player_name = fmt.Sprintf("Opponent %v", s.Index)
+			playerName = fmt.Sprintf("Opponent %v", s.Index)
 		}
-		log.Printf("%10v: Tiles: %v, Army: %v", player_name, s.Tiles, s.Armies)
+		log.Printf("%10v: Tiles: %v, Army: %v", playerName, s.Tiles, s.Armies)
 
 	}
 	if g.TurnCount < 10 {
@@ -171,34 +171,34 @@ func getHeuristicPathDistance(game *gioframework.Game, from, to int) float64 {
 	/* Would have preferred to use A* to get actual path distance, but that's
 	   prohibitvely expensive. (I need to calculate this many times per turn)
 	*/
-	base_distance := game.GetDistance(from, to)
-	tiles_in_square := getTilesInSquare(game, from, to)
-	num_obstacles := 0
-	for _, tile := range tiles_in_square {
-		num_obstacles += Btoi(game.Walkable(tile))
+	baseDistance := game.GetDistance(from, to)
+	tilesInSquares := getTilesInSquare(game, from, to)
+	numObstacles := 0
+	for _, tile := range tilesInSquares {
+		numObstacles += Btoi(game.Walkable(tile))
 	}
-	total_area := len(tiles_in_square)
-	obstacle_ratio := num_obstacles / total_area
+	total_area := len(tilesInSquares)
+	obstacleRatio := numObstacles / total_area
 	// Not sure this is the best heuristic, but it's simple, so I'll use it for
 	// now
-	return float64(base_distance) * (1. + 2.0*float64(obstacle_ratio))
+	return float64(baseDistance) * (1. + 2.0*float64(obstacleRatio))
 }
 
 func getTilesInSquare(game *gioframework.Game, i, j int) []int {
 	// Gets index of all tiles in a square defined by two diagonally opposed
 	// corners
-	row_i := game.GetRow(i)
-	col_i := game.GetCol(i)
-	row_j := game.GetRow(j)
-	col_j := game.GetCol(j)
+	rowI := game.GetRow(i)
+	colI := game.GetCol(i)
+	rowJ := game.GetRow(j)
+	colJ := game.GetCol(j)
 
-	row_limits := []int{row_i, row_j}
-	col_limits := []int{col_i, col_j}
-	sort.Ints(row_limits)
-	sort.Ints(col_limits)
+	rowLimits := []int{rowI, rowJ}
+	colLimits := []int{colI, colJ}
+	sort.Ints(rowLimits)
+	sort.Ints(colLimits)
 	var tiles []int
-	for row := row_limits[0]; row < row_limits[1]+1; row++ {
-		for col := col_limits[0]; col < col_limits[1]+1; col++ {
+	for row := rowLimits[0]; row < rowLimits[1]+1; row++ {
+		for col := colLimits[0]; col < colLimits[1]+1; col++ {
 			tiles = append(tiles, game.GetIndex(row, col))
 		}
 	}
@@ -222,9 +222,9 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 	map_data[game.GetRow(to)][game.GetCol(to)] = pathfinding.STOP
 
 	graph := pathfinding.NewGraph(&map_data)
-	nodes_path := pathfinding.Astar(graph)
+	nodesPath := pathfinding.Astar(graph)
 	path := []int{}
-	for _, node := range nodes_path {
+	for _, node := range nodesPath {
 		path = append(path, game.GetIndex(node.X, node.Y))
 	}
 	return path
@@ -232,111 +232,111 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 
 func GetBestMove(game *gioframework.Game) (int, int) {
 
-	best_from := -1
-	best_to := -1
-	best_total_score := 0.
-	var best_scores map[string]float64
+	bestFrom := -1
+	bestTo := -1
+	bestTotalScore := 0.
+	var bestScores map[string]float64
 
-	my_general := game.Generals[game.PlayerIndex]
+	myGeneral := game.Generals[game.PlayerIndex]
 
 	/// First check for attack
-	for from, from_tile := range game.GameMap {
-		if from_tile.Faction != game.PlayerIndex || from_tile.Armies < 2 {
+	for from, fromTile := range game.GameMap {
+		if fromTile.Faction != game.PlayerIndex || fromTile.Armies < 2 {
 			continue
 		}
-		//my_army_size := from_tile.Armies
+		//my_army_size := fromTile.Armies
 
-		for to, to_tile := range game.GameMap {
-			if to_tile.Faction < -1 {
+		for to, toTile := range game.GameMap {
+			if toTile.Faction < -1 {
 				continue
 			}
 			// Note: I'm not dealing with impossible to reach tiles for now
 			// No gathering for now...
-			if to_tile.Faction == game.PlayerIndex {
+			if toTile.Faction == game.PlayerIndex {
 				continue
 			}
 
-			is_empty := to_tile.Faction == TILE_EMPTY
-			is_enemy := to_tile.Faction != game.PlayerIndex && to_tile.Faction >= 0
-			is_general := to_tile.Type == gioframework.General
-			is_city := to_tile.Type == gioframework.City
-			outnumber := float64(from_tile.Armies - to_tile.Armies)
+			isEmpty := toTile.Faction == TileEmpty
+			isEnemy := toTile.Faction != game.PlayerIndex && toTile.Faction >= 0
+			isGeneral := toTile.Type == gioframework.General
+			isCity := toTile.Type == gioframework.City
+			outnumber := float64(fromTile.Armies - toTile.Armies)
 			// Should I translate my heuristic distance from my JS code?
 			dist := getHeuristicPathDistance(game, from, to)
-			dist_from_gen := getHeuristicPathDistance(game, my_general, to)
+			distFromGen := getHeuristicPathDistance(game, myGeneral, to)
 			center := game.GetIndex(game.Width/2, game.Height/2)
-			dist_from_center := getHeuristicPathDistance(game, center, to)
-			centerness := 1. - dist_from_center/float64(game.Width/2)
+			distFromCenter := getHeuristicPathDistance(game, center, to)
+			centerness := 1. - distFromCenter/float64(game.Width/2)
 
 			scores := make(map[string]float64)
 
-			scores["outnumber_score"] = Truncate(outnumber/300, 0., 0.2) * Btof(is_enemy)
-			scores["outnumbered_penalty"] = -0.1 * Btof(outnumber < 2)
-			scores["general_threat_score"] = (0.2 * math.Pow(dist_from_gen, -0.7)) * Btof(is_enemy)
-			scores["dist_penalty"] = Truncate(-0.2*dist/30, -0.2, 0)
-			scores["dist_gt_army_penalty"] = -0.1 * Btof(from_tile.Armies < int(dist))
-			scores["is_enemy_score"] = 0.05 * Btof(is_enemy)
-			scores["close_city_score"] = 0.1 * Btof(is_city) * math.Pow(dist_from_gen, -0.5)
-			scores["enemy_gen_score"] = 0.1 * Btof(is_general) * Btof(is_enemy)
-			scores["empty_score"] = 0.05 * Btof(is_empty)
+			scores["outnumber score"] = Truncate(outnumber/300, 0., 0.2) * Btof(isEnemy)
+			scores["outnumbered penalty"] = -0.1 * Btof(outnumber < 2)
+			scores["general threat score"] = (0.2 * math.Pow(distFromGen, -0.7)) * Btof(isEnemy)
+			scores["dist penalty"] = Truncate(-0.2*dist/30, -0.2, 0)
+			scores["dist gt army penalty"] = -0.1 * Btof(fromTile.Armies < int(dist))
+			scores["is enemy score"] = 0.05 * Btof(isEnemy)
+			scores["close city score"] = 0.1 * Btof(isCity) * math.Pow(distFromGen, -0.5)
+			scores["enemy gen score"] = 0.1 * Btof(isGeneral) * Btof(isEnemy)
+			scores["empty score"] = 0.05 * Btof(isEmpty)
 			// Generally a good strategy to take the center of the board
-			scores["centerness_score"] = 0.05 * centerness
+			scores["centerness score"] = 0.05 * centerness
 
-			total_score := 0.
+			totalScore := 0.
 			for _, score := range scores {
-				total_score += score
+				totalScore += score
 			}
 
-			if total_score > best_total_score {
-				best_scores = scores
-				best_total_score = total_score
-				best_from = from
-				best_to = to
+			if totalScore > bestTotalScore {
+				bestScores = scores
+				bestTotalScore = totalScore
+				bestFrom = from
+				bestTo = to
 			}
 
 		}
 	}
 
-	logSortedScores(best_scores)
+	logSortedScores(bestScores)
 
-	log.Printf("Total score: %.2f", best_total_score)
-	log.Printf("From:%v To:%v", game.GetCoordString(best_from), game.GetCoordString(best_to))
+	log.Printf("Total score: %.2f", bestTotalScore)
+	log.Printf("From:%v To:%v", game.GetCoordString(bestFrom), game.GetCoordString(bestTo))
 
 	/////////////// Then check for consolidation  //////////////////////////////
-	consol_score := getConsolidationScore(game)
-	log.Printf("Consolidation score:%.2f", consol_score)
+	consolScore := getConsolidationScore(game)
+	log.Printf("Consolidation score:%.2f", consolScore)
 
 	tiles := getTilesSortedOnArmies(game)
-	if len(tiles) > 10 && consol_score > best_total_score {
-		largest_tile := tiles[0]
+	if len(tiles) > 10 && consolScore > bestTotalScore {
+		largestTile := tiles[0]
 		for _, tile := range tiles[:5] {
 			log.Printf("Army ranked: %v", game.GameMap[tile].Armies)
 		}
-		highest_av_army := 0.
+		highestAvArmy := 0.
 		for _, from := range tiles[1:] {
 			if game.GameMap[from].Armies < 2 {
 				continue
 			}
 			// Warning: this path could cut through enemy territory!  Keep an
 			// eye for this
-			path_ := GetShortestPath(game, from, largest_tile)
+			path_ := GetShortestPath(game, from, largestTile)
 			armies := 0
 			for _, i := range path_ {
 				armies += game.GameMap[i].Armies
 			}
 			av_army := float64(armies) / float64(len(path_))
-			if av_army > highest_av_army {
-				highest_av_army = av_army
-				best_from = from
+			if av_army > highestAvArmy {
+				highestAvArmy = av_army
+				bestFrom = from
 			}
 		}
-		if highest_av_army > 0 {
-			best_to = largest_tile
+		if highestAvArmy > 0 {
+			bestTo = largestTile
 			log.Println("Consolidating...")
 		}
 	}
 
-	return best_from, best_to
+	return bestFrom, bestTo
 }
 
 func logSortedScores(scores map[string]float64) {
@@ -359,22 +359,22 @@ func Truncate(val, min, max float64) float64 {
 
 func getConsolidationScore(game *gioframework.Game) float64 {
 	gini := getArmyGiniCoefficient(game)
-	total_army := float64(game.Scores[game.PlayerIndex].Armies)
+	totalArmy := float64(game.Scores[game.PlayerIndex].Armies)
 	log.Printf("Gini coefficient: %.2f", gini)
-	log.Printf("Total army: %v", total_army)
-	return (0.5 - gini) * Truncate(total_army/500., 0.5, 2.)
+	log.Printf("Total army: %v", totalArmy)
+	return (0.5 - gini) * Truncate(totalArmy/500., 0.5, 2.)
 }
 
 func getArmyGiniCoefficient(game *gioframework.Game) float64 {
-	movable_armies := []int{}
+	movableArmies := []int{}
 	for i := 0; i < game.Height*game.Width; i++ {
 		tile := game.GameMap[i]
 		if tile.Faction == game.PlayerIndex {
-			movable_armies = append(movable_armies, tile.Armies-1)
+			movableArmies = append(movableArmies, tile.Armies-1)
 		}
 	}
-	//log.Printf("movable_armies: %v", movable_armies)
-	return giniCoefficient(movable_armies)
+	//log.Printf("movableArmies: %v", movableArmies)
+	return giniCoefficient(movableArmies)
 }
 
 // giniCoefficient is calculated as described here:
@@ -396,15 +396,15 @@ func giniCoefficient(nums []int) float64 {
 }
 
 func getTilesSortedOnArmies(game *gioframework.Game) []int {
-	tile_to_army := make(map[int]int)
+	tileToArmy := make(map[int]int)
 	for i := 0; i < game.Height*game.Width; i++ {
 		tile := game.GameMap[i]
 		if tile.Faction == game.PlayerIndex {
-			tile_to_army[i] = tile.Armies
+			tileToArmy[i] = tile.Armies
 		}
 	}
-	largest_army_ties := sortKeysByValues(tile_to_army, true)
-	return largest_army_ties
+	largestArmyTiles := sortKeysByValues(tileToArmy, true)
+	return largestArmyTiles
 }
 
 func sortKeysByValues(m map[int]int, reversed bool) []int {
