@@ -269,7 +269,7 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 			scores["outnumber score"] = Truncate(outnumber/200, 0., 0.3) * Btof(isEnemy)
 			scores["outnumbered penalty"] = -0.2 * Btof(outnumber < 2)
 			scores["general threat score"] = (0.2 * math.Pow(distFromGen, -0.7)) * Btof(isEnemy)
-			scores["dist penalty"] = Truncate(-0.3*dist/30, -0.3, 0)
+			scores["dist penalty"] = Truncate(-0.5*dist/30, -0.3, 0)
 			scores["dist gt army penalty"] = -0.2 * Btof(fromTile.Armies < int(dist))
 			scores["is enemy score"] = 0.05 * Btof(isEnemy)
 			scores["close city score"] = 0.15 * Btof(isCity) * math.Pow(distFromGen, -0.5)
