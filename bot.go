@@ -296,11 +296,15 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 
 	logSortedScores(bestScores)
 
-	log.Printf("Total score: %.2f", bestTotalScore)
+	log.Printf("Attack score: %.2f", bestTotalScore)
 	log.Printf("From:%v To:%v", game.GetCoordString(bestFrom), game.GetCoordString(bestTo))
+	log.Println("--------")
 
 	/////////////// Then check for consolidation  //////////////////////////////
-	consolScore := getConsolidationScore(game)
+	//consolScore := getConsolidationScore(game)
+	// It's a good idea to consolidate armies right after the armies regenerate.
+	turnsToGenerate := 50 - game.TurnCount % 50
+	consolScore := 0.35 * float64(turnsToGenerate) / 50.
 	log.Printf("Consolidation score:%.2f", consolScore)
 
 	tiles := getTilesSortedOnArmies(game)
