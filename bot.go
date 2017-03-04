@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/andyleap/gioframework"
-	"github.com/xarg/gopathfinding"
 	"io"
 	"log"
 	"math"
@@ -13,6 +11,9 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/andyleap/gioframework"
+	"github.com/xarg/gopathfinding"
 )
 
 const (
