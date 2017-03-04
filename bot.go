@@ -109,12 +109,12 @@ func main() {
 }
 
 func setupLogging() {
-	log_dir := "log"
-	_ = os.Mkdir(log_dir, os.ModePerm)
+	logDir := "log"
+	_ = os.Mkdir(logDir, os.ModePerm)
 
 	rand.Seed(time.Now().UTC().UnixNano())
-	logFile := path.Join(log_dir, "log_"+strconv.Itoa(rand.Intn(10000)))
-	logFile, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
+	logFilename := path.Join(logDir, "log_"+strconv.Itoa(rand.Intn(10000)))
+	logFile, err := os.OpenFile(logFilename, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
 	check(err)
 
 	mw := io.MultiWriter(os.Stdout, logFile)
@@ -240,20 +240,14 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 
 	myGeneral := game.Generals[game.PlayerIndex]
 
-	/// First check for attack
+	/// First check for attacking new empty or enemy tiles
 	for from, fromTile := range game.GameMap {
 		if fromTile.Faction != game.PlayerIndex || fromTile.Armies < 2 {
 			continue
 		}
-		//my_army_size := fromTile.Armies
 
 		for to, toTile := range game.GameMap {
-			if toTile.Faction < -1 {
-				continue
-			}
-			// Note: I'm not dealing with impossible to reach tiles for now
-			// No gathering for now...
-			if toTile.Faction == game.PlayerIndex {
+			if toTile.Faction < -1 || toTile.Faction == game.PlayerIndex {
 				continue
 			}
 			if game.ImpossibleTiles[to] {
@@ -265,7 +259,6 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 			isGeneral := toTile.Type == gioframework.General
 			isCity := toTile.Type == gioframework.City
 			outnumber := float64(fromTile.Armies - toTile.Armies)
-			// Should I translate my heuristic distance from my JS code?
 			dist := getHeuristicPathDistance(game, from, to)
 			distFromGen := getHeuristicPathDistance(game, myGeneral, to)
 			center := game.GetIndex(game.Width/2, game.Height/2)
