@@ -27,7 +27,7 @@ const (
 // If we allow too many future moves, then bot is less adaptive to changing
 // conditions
 const MaxPlannedMoves = 6
-const NumGamesToPlay = 30
+const NumGamesToPlay = 1
 
 func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
@@ -78,8 +78,7 @@ func main() {
 			if game.QueueLength() > 0 {
 				continue
 			}
-			// Re-enable after debugging...
-			if realGame && game.TurnCount < 30 {
+			if game.TurnCount < 30 {
 				//log.Println("Waiting for turn 30...")
 				continue
 			}
@@ -267,15 +266,15 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 
 			scores := make(map[string]float64)
 
-			scores["outnumber score"] = Truncate(outnumber/300, 0., 0.2) * Btof(isEnemy)
-			scores["outnumbered penalty"] = -0.1 * Btof(outnumber < 2)
+			scores["outnumber score"] = Truncate(outnumber/200, 0., 0.3) * Btof(isEnemy)
+			scores["outnumbered penalty"] = -0.2 * Btof(outnumber < 2)
 			scores["general threat score"] = (0.2 * math.Pow(distFromGen, -0.7)) * Btof(isEnemy)
-			scores["dist penalty"] = Truncate(-0.2*dist/30, -0.2, 0)
-			scores["dist gt army penalty"] = -0.1 * Btof(fromTile.Armies < int(dist))
+			scores["dist penalty"] = Truncate(-0.3*dist/30, -0.3, 0)
+			scores["dist gt army penalty"] = -0.2 * Btof(fromTile.Armies < int(dist))
 			scores["is enemy score"] = 0.05 * Btof(isEnemy)
-			scores["close city score"] = 0.1 * Btof(isCity) * math.Pow(distFromGen, -0.5)
-			scores["enemy gen score"] = 0.1 * Btof(isGeneral) * Btof(isEnemy)
-			scores["empty score"] = 0.05 * Btof(isEmpty)
+			scores["close city score"] = 0.15 * Btof(isCity) * math.Pow(distFromGen, -0.5)
+			scores["enemy gen score"] = 0.15 * Btof(isGeneral) * Btof(isEnemy)
+			scores["empty score"] = 0.08 * Btof(isEmpty)
 			// Generally a good strategy to take the center of the board
 			scores["centerness score"] = 0.03 * centerness
 
@@ -303,8 +302,9 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 	/////////////// Then check for consolidation  //////////////////////////////
 	//consolScore := getConsolidationScore(game)
 	// It's a good idea to consolidate armies right after the armies regenerate.
-	turnsToGenerate := 50 - game.TurnCount % 50
-	consolScore := 0.35 * float64(turnsToGenerate) / 50.
+	// armyCycle shows the amount of the cycle that's passed.  [0, 1]
+	armyCycle := float64(game.TurnCount % 50) / 50
+	consolScore := 0.35 * math.Pow(1-armyCycle, 6)
 	log.Printf("Consolidation score:%.2f", consolScore)
 
 	tiles := getTilesSortedOnArmies(game)
@@ -322,10 +322,10 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 			// eye for this
 			path_ := GetShortestPath(game, from, largestTile)
 			armies := 0
-			for _, i := range path_ {
+			for _, i := range path_[:len(path_)-1] {
 				armies += game.GameMap[i].Armies
 			}
-			av_army := float64(armies) / float64(len(path_))
+			av_army := float64(armies) / float64(len(path_)-1)
 			if av_army > highestAvArmy {
 				highestAvArmy = av_army
 				bestFrom = from
@@ -333,7 +333,7 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 		}
 		if highestAvArmy > 0 {
 			bestTo = largestTile
-			log.Println("Consolidating...")
+			log.Printf("Consolidating, with average army: %v", highestAvArmy)
 		}
 	}
 
