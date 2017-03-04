@@ -215,7 +215,7 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 			// somewhere else.  Note: if it is the final destination, it'll be
 			// changed
 			not_my_city := tile.Type == gioframework.City && tile.Faction != game.PlayerIndex
-			map_data[row][col] = Btoi(!game.Walkable(i) || not_my_city || game.ImpossibleTiles[i])
+			map_data[row][col] = Btoi(!game.Walkable(i) || not_my_city)
 		}
 	}
 	map_data[game.GetRow(from)][game.GetCol(from)] = pathfinding.START
@@ -253,6 +253,9 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 			// Note: I'm not dealing with impossible to reach tiles for now
 			// No gathering for now...
 			if toTile.Faction == game.PlayerIndex {
+				continue
+			}
+			if game.ImpossibleTiles[to] {
 				continue
 			}
 
