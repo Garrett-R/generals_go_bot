@@ -331,10 +331,17 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 				bestFrom = from
 			}
 		}
-		if highestAvArmy > 0 {
-			bestTo = largestTile
-			log.Printf("Consolidating, with average army: %v", highestAvArmy)
+		bestTo = largestTile
+		// We want to move away from the general.  Reverse if that's not the
+		// case
+		fromDistGen := getHeuristicPathDistance(game, myGeneral, bestFrom)
+		toDistGen := getHeuristicPathDistance(game, myGeneral, bestTo)
+		if toDistGen < fromDistGen {
+			log.Println("Switching direction of consolidation")
+			bestFrom, bestTo = bestTo, bestFrom
 		}
+
+		log.Printf("Consolidating, with average army: %v", highestAvArmy)
 	}
 
 	return bestFrom, bestTo
