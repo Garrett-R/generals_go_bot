@@ -277,7 +277,7 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 			scores["enemy gen score"] = 0.1 * Btof(isGeneral) * Btof(isEnemy)
 			scores["empty score"] = 0.05 * Btof(isEmpty)
 			// Generally a good strategy to take the center of the board
-			scores["centerness score"] = 0.05 * centerness
+			scores["centerness score"] = 0.03 * centerness
 
 			totalScore := 0.
 			for _, score := range scores {
