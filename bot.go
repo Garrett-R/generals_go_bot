@@ -235,6 +235,11 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 }
 
 func GetBestMove(game *gioframework.Game) (int, int) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("ERROR, GetBestMove recovered from panic: %v", r)
+		}
+	}()
 
 	bestFrom := -1
 	bestTo := -1
