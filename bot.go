@@ -27,7 +27,7 @@ const (
 // If we allow too many future moves, then bot is less adaptive to changing
 // conditions
 const MaxPlannedMoves = 10
-const NumGamesToPlay = 1
+const NumGamesToPlay = 100
 
 func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
@@ -177,15 +177,15 @@ func getHeuristicPathDistance(game *gioframework.Game, from, to int) float64 {
 	*/
 	baseDistance := game.GetDistance(from, to)
 	tilesInSquares := getTilesInSquare(game, from, to)
-	numObstacles := 0
+	numObstacles := 0.
 	for _, tile := range tilesInSquares {
-		numObstacles += Btoi(game.Walkable(tile))
+		numObstacles += Btof(game.Walkable(tile))
 	}
 	total_area := len(tilesInSquares)
-	obstacleRatio := numObstacles / total_area
+	obstacleRatio := numObstacles / float64(total_area)
 	// Not sure this is the best heuristic, but it's simple, so I'll use it for
 	// now
-	return float64(baseDistance) * (1. + 2.0*float64(obstacleRatio))
+	return float64(baseDistance) * (1. + 2.0*obstacleRatio)
 }
 
 func getTilesInSquare(game *gioframework.Game, i, j int) []int {
@@ -266,7 +266,7 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 			distFromGen := getHeuristicPathDistance(game, myGeneral, to)
 			center := game.GetIndex(game.Width/2, game.Height/2)
 			distFromCenter := getHeuristicPathDistance(game, center, to)
-			centerness := 1. - distFromCenter/float64(game.Width/2)
+			centerness := 1. - distFromCenter/float64(game.Width)
 
 			if isCity && outnumber < 2 && !isEnemy {
 				// Never attack a neutral city and lose
