@@ -95,7 +95,11 @@ func main() {
 			if from < 0 {
 				continue
 			}
-			path := GetShortestPath(game, from, toTarget)
+			path, err := GetShortestPath(game, from, toTarget)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
 			if len(path) == 0 {
 				log.Printf("Registering impossible tile: %v", game.GetCoordString(toTarget))
 				game.ImpossibleTiles[toTarget] = true
@@ -226,7 +230,29 @@ func getTilesInSquare(game *gioframework.Game, i, j int) []int {
 	return tiles
 }
 
-func GetShortestPath(game *gioframework.Game, from, to int) []int {
+
+type AstarError struct {
+	From, To string
+}
+
+func (e AstarError) Error() string {
+	return fmt.Sprintf("Astar error with from:%v to:%v", e.From, e.To)
+}
+
+func GetShortestPath(game *gioframework.Game, from, to int) (path []int, err error) {
+	// pathfinding.Astar has no error handling, so we catch its panics
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("ERROR, GetShortestPath recovered from panic: %v\n", r)
+			path = []int{}
+			err = AstarError{
+				game.GetCoordString(from),
+				game.GetCoordString(to),
+			}
+		}
+	}()
+	// TODO: if from and to are the same, just erturn an err.
+
 	map_data := *pathfinding.NewMapData(game.Height, game.Width)
 	for row := 0; row < game.Height; row++ {
 		for col := 0; col < game.Width; col++ {
@@ -244,11 +270,11 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 
 	graph := pathfinding.NewGraph(&map_data)
 	nodesPath := pathfinding.Astar(graph)
-	path := []int{}
+	path = []int{}
 	for _, node := range nodesPath {
 		path = append(path, game.GetIndex(node.X, node.Y))
 	}
-	return path
+	return path, nil
 }
 
 func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
@@ -340,7 +366,7 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 	// It's a good idea to consolidate armies right after the armies regenerate.
 	// armyCycle shows the amount of the cycle that's passed.  [0, 1]
 	armyCycle := float64(game.TurnCount % 50) / 50
-	consolScore := 0.4 * math.Pow(1-armyCycle, 6)
+	consolScore := 0.6 * math.Pow(1-armyCycle, 6)  - 0.2
 	log.Printf("Consolidation score:%.2f", consolScore)
 
 	tiles := getTilesSortedOnArmies(game)
@@ -356,7 +382,7 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			}
 			// Warning: this path could cut through enemy territory!  Keep an
 			// eye for this
-			path_ := GetShortestPath(game, from, largestTile)
+			path_, _ := GetShortestPath(game, from, largestTile)  // TODO: handle err  //TODO: this throws an error it seems!  largestTile == from ??!!
 			armies := 0
 			for _, i := range path_[:len(path_)-1] {
 				armies += game.GameMap[i].Armies
@@ -441,6 +467,7 @@ func getEnemyCenterOfMass(game *gioframework.Game) int {
 	if armies == 0 {
 		COM = -1
 		log.Println("COM is: -1")
+		return COM
 	}
 	avRow := float64(Sum(rows))/float64(armies)
 	avCol := float64(Sum(cols))/float64(armies)
