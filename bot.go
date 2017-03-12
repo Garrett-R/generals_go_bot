@@ -32,6 +32,8 @@ const NumGamesToPlay = 100
 func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
 	go client.Run()
+	// Hack to help with race condition for setting name
+	time.Sleep(time.Second)
 
 	for i := 0; i < NumGamesToPlay; i++ {
 		setupLogging()
@@ -44,8 +46,13 @@ func main() {
 			game = client.Join1v1()
 			log.Println("Waiting for opponent...")
 		} else {
-			gameId := "bot_testing_game"
+			gameId := "bot_game"
 			game = client.JoinCustomGame(gameId)
+			teamVar := os.Getenv("TEAM")
+			if teamVar != "" {
+				team, _ := strconv.Atoi(teamVar)
+				game.SetTeam(team, gameId)
+			}
 			url := "http://bot.generals.io/games/" + gameId
 			log.Printf("Joined custom game, go to: %v", url)
 			game.SetForceStart(true)
@@ -59,11 +66,11 @@ func main() {
 		}
 		done := false
 		game.Won = func() {
-			log.Println("Won game!")
+			log.Println("============   Won game!  ================")
 			done = true
 		}
 		game.Lost = func() {
-			log.Println("Lost game...")
+			log.Println("============   Lost game...  ============")
 			done = true
 		}
 
@@ -84,14 +91,14 @@ func main() {
 
 			logTurnData(game)
 
-			from, to_target := GetBestMove(game)
+			from, toTarget := GetBestMove(game)
 			if from < 0 {
 				continue
 			}
-			path := GetShortestPath(game, from, to_target)
+			path := GetShortestPath(game, from, toTarget)
 			if len(path) == 0 {
-				log.Printf("Registering impossible tile: %v", game.GetCoordString(to_target))
-				game.ImpossibleTiles[to_target] = true
+				log.Printf("Registering impossible tile: %v", game.GetCoordString(toTarget))
+				game.ImpossibleTiles[toTarget] = true
 			}
 
 			max_num_moves := min(len(path)-1, MaxPlannedMoves)
@@ -103,6 +110,7 @@ func main() {
 			}
 		}
 		log.Printf("Replay available at: http://bot.generals.io/replays/%v", game.ReplayID)
+		time.Sleep(10*time.Second)
 	}
 }
 
@@ -234,15 +242,29 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 	return path
 }
 
-func GetBestMove(game *gioframework.Game) (int, int) {
+func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
+
+	//fmt.Println("Recovered in f", r)
+	//		// find out exactly what the error was and set err
+	//		switch x := r.(type) {
+	//		case string:
+	//			err = errors.New(x)
+	//		case error:
+	//			err = x
+	//		default:
+	//			err = errors.New("Unknown panic")
+	//}
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("ERROR, GetBestMove recovered from panic: %v", r)
+			bestFrom = -1
+			bestTo = -1
 		}
 	}()
 
-	bestFrom := -1
-	bestTo := -1
+	bestFrom = -1
+	bestTo = -1
 	bestTotalScore := 0.
 	var bestScores map[string]float64
 
@@ -262,8 +284,10 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 				continue
 			}
 
+
 			isEmpty := toTile.Faction == TileEmpty
-			isEnemy := toTile.Faction != game.PlayerIndex && toTile.Faction >= 0
+			//isEnemy := toTile.Faction != game.PlayerIndex && toTile.Faction >= 0
+			isEnemy := IsEnemy(game, toTile)
 			isGeneral := toTile.Type == gioframework.General
 			isCity := toTile.Type == gioframework.City
 			outnumber := float64(fromTile.Armies - toTile.Armies)
@@ -360,6 +384,12 @@ func GetBestMove(game *gioframework.Game) (int, int) {
 
 	return bestFrom, bestTo
 }
+
+func IsEnemy(game *gioframework.Game, tile gioframework.Cell) bool {
+	myTeam := game.Teams[game.PlayerIndex]
+	return tile.Faction >= 0 && game.Teams[tile.Faction] != myTeam
+}
+
 
 func logSortedScores(scores map[string]float64) {
 	keys := make([]string, len(scores))
