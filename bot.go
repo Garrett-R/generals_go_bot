@@ -26,7 +26,7 @@ const (
 // If we allow too few future moves, then slow network means we could miss turns
 // If we allow too many future moves, then bot is less adaptive to changing
 // conditions
-const MaxPlannedMoves = 10
+const MaxPlannedMoves = 8
 const NumGamesToPlay = 100
 
 func main() {
@@ -184,16 +184,25 @@ func getHeuristicPathDistance(game *gioframework.Game, from, to int) float64 {
 	   prohibitvely expensive. (I need to calculate this many times per turn)
 	*/
 	baseDistance := game.GetDistance(from, to)
-	tilesInSquares := getTilesInSquare(game, from, to)
+	tilesInSquare := getTilesInSquare(game, from, to)
 	numObstacles := 0.
-	for _, tile := range tilesInSquares {
-		numObstacles += Btof(game.Walkable(tile))
+	for _, tile := range tilesInSquare {
+		numObstacles += Btof(!game.Walkable(tile))
 	}
-	total_area := len(tilesInSquares)
+
+	total_area := len(tilesInSquare)
 	obstacleRatio := numObstacles / float64(total_area)
 	// Not sure this is the best heuristic, but it's simple, so I'll use it for
 	// now
-	return float64(baseDistance) * (1. + 2.0*obstacleRatio)
+	hDist := float64(baseDistance) * (1. + 2.0*obstacleRatio)
+	//log.Printf("hDist from %v to %v is: %v", game.GetCoordString(from), game.GetCoordString(to), hDist)
+	//log.Println("tilesInSquare: ")
+	//for _, i := range tilesInSquare {
+	//	log.Println(game.GetCoordString(i))
+	//}
+	//log.Println("baseDistance:", baseDistance)
+	//log.Println("obstacleRatio:", obstacleRatio)
+	return hDist
 }
 
 func getTilesInSquare(game *gioframework.Game, i, j int) []int {
@@ -253,10 +262,11 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 
 	bestFrom = -1
 	bestTo = -1
-	bestTotalScore := 0.
+	bestTotalScore := -10.
 	var bestScores map[string]float64
 
 	myGeneral := game.Generals[game.PlayerIndex]
+	enemyCOM := getEnemyCenterOfMass(game)
 
 	/// First check for attacking new empty or enemy tiles
 	for from, fromTile := range game.GameMap {
@@ -265,16 +275,14 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 		}
 
 		for to, toTile := range game.GameMap {
-			if toTile.Faction < -1 || toTile.Faction == game.PlayerIndex {
+			if toTile.Faction < TileEmpty || toTile.Faction == game.PlayerIndex {
 				continue
 			}
 			if game.ImpossibleTiles[to] {
 				continue
 			}
 
-
 			isEmpty := toTile.Faction == TileEmpty
-			//isEnemy := toTile.Faction != game.PlayerIndex && toTile.Faction >= 0
 			isEnemy := IsEnemy(game, toTile)
 			isGeneral := toTile.Type == gioframework.General
 			isCity := toTile.Type == gioframework.City
@@ -308,6 +316,8 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			for _, score := range scores {
 				totalScore += score
 			}
+			//log.Printf("============Considering move %v->%v, got score: %v\n", from, to, totalScore)
+			//logSortedScores(scores)
 
 			if totalScore > bestTotalScore {
 				bestScores = scores
@@ -358,18 +368,19 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			}
 		}
 		bestTo = largestTile
-		// We want to move away from the general.  Reverse if that's not the
+		// We want to move towards the enemy.  Reverse if that's not the
 		// case
-		fromDistGen := getHeuristicPathDistance(game, myGeneral, bestFrom)
-		toDistGen := getHeuristicPathDistance(game, myGeneral, bestTo)
-		if toDistGen < fromDistGen {
-			log.Println("Switching direction of consolidation")
-			bestFrom, bestTo = bestTo, bestFrom
+		if enemyCOM >= 0 {
+			fromDistEnemy := getHeuristicPathDistance(game, enemyCOM, bestFrom)
+			toDistEnemy := getHeuristicPathDistance(game, enemyCOM, bestTo)
+			if fromDistEnemy < toDistEnemy {
+				log.Println("Switching direction of consolidation")
+				bestFrom, bestTo = bestTo, bestFrom
+			}
 		}
 
 		log.Printf("Consolidating, with average army: %v", highestAvArmy)
 	}
-
 	return bestFrom, bestTo
 }
 
@@ -397,6 +408,49 @@ func Truncate(val, min, max float64) float64 {
 	return math.Min(math.Max(val, min), max)
 }
 
+func Sum(x []int) int {  // TODO make this an interface for fun
+	sum := 0
+	for _, i := range x {
+		sum += i
+	}
+	return sum
+}
+
+//func Round(val float64) int {
+//    if val < 0 {
+//        return int(val-0.5)
+//    }
+//    return int(val+0.5)
+//}
+
+// getEnemyCenterOfMass find the central point of the visible enemy terrain,
+// weighted by armies, and rounded to the closes tile.
+func getEnemyCenterOfMass(game *gioframework.Game) int {
+	rows := []int{}
+	cols := []int{}
+	armies := 0
+	for i, tile := range game.GameMap {
+		if IsEnemy(game, tile) {
+			army := tile.Armies
+			rows = append(rows, army*game.GetRow(i))
+			cols = append(cols, army*game.GetCol(i))
+			armies += army
+		}
+	}
+	var COM int
+	if armies == 0 {
+		COM = -1
+		log.Println("COM is: -1")
+	}
+	avRow := float64(Sum(rows))/float64(armies)
+	avCol := float64(Sum(cols))/float64(armies)
+	COM = game.GetIndex(int(avRow), int(avCol))
+	log.Printf("COM is: %v\n", game.GetCoordString(COM))
+	return COM
+}
+
+
+
 func getConsolidationScore(game *gioframework.Game) float64 {
 	gini := getArmyGiniCoefficient(game)
 	totalArmy := float64(game.Scores[game.PlayerIndex].Armies)
@@ -407,8 +461,7 @@ func getConsolidationScore(game *gioframework.Game) float64 {
 
 func getArmyGiniCoefficient(game *gioframework.Game) float64 {
 	movableArmies := []int{}
-	for i := 0; i < game.Height*game.Width; i++ {
-		tile := game.GameMap[i]
+	for _, tile := range game.GameMap {
 		if tile.Faction == game.PlayerIndex {
 			movableArmies = append(movableArmies, tile.Armies-1)
 		}
