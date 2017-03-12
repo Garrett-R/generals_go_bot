@@ -243,18 +243,6 @@ func GetShortestPath(game *gioframework.Game, from, to int) []int {
 }
 
 func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
-
-	//fmt.Println("Recovered in f", r)
-	//		// find out exactly what the error was and set err
-	//		switch x := r.(type) {
-	//		case string:
-	//			err = errors.New(x)
-	//		case error:
-	//			err = x
-	//		default:
-	//			err = errors.New("Unknown panic")
-	//}
-
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("ERROR, GetBestMove recovered from panic: %v", r)
