@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-errors/errors"
 	"github.com/andyleap/gioframework"
 	"github.com/xarg/gopathfinding"
 )
@@ -281,6 +282,7 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("ERROR, GetBestMove recovered from panic: %v", r)
+			fmt.Println(errors.Wrap(r, 2).ErrorStack())
 			bestFrom = -1
 			bestTo = -1
 		}
@@ -411,8 +413,13 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 }
 
 func IsEnemy(game *gioframework.Game, tile gioframework.Cell) bool {
-	myTeam := game.Teams[game.PlayerIndex]
-	return tile.Faction >= 0 && game.Teams[tile.Faction] != myTeam
+	if len(game.Teams) == 0 {
+		// This means we're playing 1v1 or FFA
+		return tile.Faction != game.PlayerIndex && tile.Faction >= 0
+	} else {
+		myTeam := game.Teams[game.PlayerIndex]
+		return tile.Faction >= 0 && game.Teams[tile.Faction] != myTeam
+	}
 }
 
 
