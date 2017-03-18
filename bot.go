@@ -318,8 +318,14 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			dist := getHeuristicPathDistance(game, from, to)
 			distFromGen := getHeuristicPathDistance(game, myGeneral, to)
 			center := game.GetIndex(game.Width/2, game.Height/2)
-			distFromCenter := getHeuristicPathDistance(game, center, to)
-			centerness := 1. - distFromCenter/float64(game.Width)
+			distCenter := getHeuristicPathDistance(game, center, to)
+			centerness := 1. - distCenter/float64(game.Width)
+			fromDistEnemyCOM := -1.
+			toDistEnemyCOM := -1.
+			if enemyCOM != -1 {
+				fromDistEnemyCOM = getHeuristicPathDistance(game, enemyCOM, from)
+				toDistEnemyCOM = getHeuristicPathDistance(game, enemyCOM, to)
+			}
 
 			if isCity && outnumber < 2 && !isEnemy {
 				// Never attack a neutral city and lose
@@ -338,7 +344,11 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			scores["enemy gen score"] = 0.15 * Btof(isGeneral) * Btof(isEnemy)
 			scores["empty score"] = 0.08 * Btof(isEmpty)
 			// Generally a good strategy to take the center of the board
-			scores["centerness score"] = 0.03 * centerness
+			scores["centerness score"] = 0.02 * centerness
+			// You should move towards enemy's main base, not random little
+			// patches of enemy.  This prevents the bot from "cleaning up"
+			// irrelevant squares
+			scores["towards enemy score"] = 0.03 * Btof(toDistEnemyCOM < fromDistEnemyCOM)
 
 			totalScore := 0.
 			for _, score := range scores {
