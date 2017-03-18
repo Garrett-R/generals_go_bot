@@ -320,11 +320,22 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			center := game.GetIndex(game.Width/2, game.Height/2)
 			distCenter := getHeuristicPathDistance(game, center, to)
 			centerness := 1. - distCenter/float64(game.Width)
-			fromDistEnemyCOM := -1.
-			toDistEnemyCOM := -1.
-			if enemyCOM != -1 {
-				fromDistEnemyCOM = getHeuristicPathDistance(game, enemyCOM, from)
-				toDistEnemyCOM = getHeuristicPathDistance(game, enemyCOM, to)
+			// This is the vector pointing towards the enemy
+			enemyVector := [2]int{
+				game.GetRow(enemyCOM) - game.GetRow(myGeneral),
+				game.GetCol(enemyCOM) - game.GetCol(myGeneral),
+			}
+			// The vector showing the proposed move
+			moveVector := [2]int{
+				game.GetRow(to) - game.GetRow(from),
+				game.GetCol(to) - game.GetCol(from),
+			}
+			neighbors := game.GetNeighborhood(to)
+			numAlliedNeighbors := 0
+			for _, neighbor := range neighbors {
+				if !IsEnemy(game, game.GameMap[neighbor]) {
+					numAlliedNeighbors += 1
+				}
 			}
 
 			if isCity && outnumber < 2 && !isEnemy {
@@ -336,7 +347,7 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 
 			scores["outnumber score"] = Truncate(outnumber/200, 0., 0.25) * Btof(isEnemy)
 			scores["outnumbered penalty"] = -0.2 * Btof(outnumber < 2)
-			scores["general threat score"] = (0.2 * math.Pow(distFromGen, -0.7)) * Btof(isEnemy)
+			scores["general threat score"] = (0.25 * math.Pow(distFromGen, -1.5)) * Btof(isEnemy)
 			scores["dist penalty"] = Truncate(-0.5*dist/30, -0.3, 0)
 			scores["dist gt army penalty"] = -0.2 * Btof(fromTile.Armies < int(dist))
 			scores["is enemy score"] = 0.05 * Btof(isEnemy)
@@ -347,8 +358,13 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			scores["centerness score"] = 0.02 * centerness
 			// You should move towards enemy's main base, not random little
 			// patches of enemy.  This prevents the bot from "cleaning up"
-			// irrelevant squares
-			scores["towards enemy score"] = 0.03 * Btof(toDistEnemyCOM < fromDistEnemyCOM)
+			// irrelevant squares.  This could be improved by making the vectors
+			// normalized and having the score gradually increase as you point
+			// towards the enemy
+			scores["towards enemy score"] = 0.03 * Btof(dotProduct(enemyVector, moveVector) > 1)
+			// Instead of attacking all the tiles on the enemy's border it is
+			// typically better to make a deep drive into enemy land
+			scores["drive in enemy score"] = 0.04 * Btof(numAlliedNeighbors < 2)
 
 			totalScore := 0.
 			for _, score := range scores {
@@ -459,12 +475,10 @@ func Sum(x []int) int {  // TODO make this an interface for fun
 	return sum
 }
 
-//func Round(val float64) int {
-//    if val < 0 {
-//        return int(val-0.5)
-//    }
-//    return int(val+0.5)
-//}
+func dotProduct(x [2]int, y [2]int) float64 {
+	return float64(x[0]) * float64(y[0]) + float64(x[1]) * float64(y[1])
+}
+
 
 // getEnemyCenterOfMass find the central point of the visible enemy terrain,
 // weighted by armies, and rounded to the closes tile.
