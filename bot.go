@@ -134,7 +134,7 @@ func setupLogging() {
 
 func logTurnData(g *gioframework.Game) {
 	log.Println("------------------------------------------")
-	log.Printf("Turn: %v (UI Turn: %v)", g.TurnCount, float64(g.TurnCount)/2.)
+	log.Printf("Turn: %v (UI%v)", g.TurnCount, float64(g.TurnCount)/2.)
 
 	var msgs []string
 	for _, s := range g.Scores {
@@ -332,7 +332,6 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			}
 			neighbors := game.GetNeighborhood(to, false)
 			numAlliedNeighbors := 0
-			log.Println("..........................", game.GetCoordString(to))
 			for _, neighbor := range neighbors {
 				if !IsEnemy(game, game.GameMap[neighbor]) {
 					numAlliedNeighbors += 1
@@ -353,6 +352,7 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			scores["dist gt army penalty"] = -0.2 * Btof(fromTile.Armies < int(dist))
 			scores["is enemy score"] = 0.05 * Btof(isEnemy)
 			scores["close city score"] = 0.25 * Btof(isCity) * math.Pow(distFromGen, -0.5)
+			scores["enemy city score"] = 0.2 * Btof(isCity && isEnemy)
 			scores["enemy gen score"] = 0.15 * Btof(isGeneral) * Btof(isEnemy)
 			scores["empty score"] = 0.08 * Btof(isEmpty)
 			// Generally a good strategy to take the center of the board
