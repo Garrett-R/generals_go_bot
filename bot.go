@@ -330,8 +330,9 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 				game.GetRow(to) - game.GetRow(from),
 				game.GetCol(to) - game.GetCol(from),
 			}
-			neighbors := game.GetNeighborhood(to)
+			neighbors := game.GetNeighborhood(to, false)
 			numAlliedNeighbors := 0
+			log.Println("..........................", game.GetCoordString(to))
 			for _, neighbor := range neighbors {
 				if !IsEnemy(game, game.GameMap[neighbor]) {
 					numAlliedNeighbors += 1
@@ -364,7 +365,7 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			scores["towards enemy score"] = 0.03 * Btof(dotProduct(enemyVector, moveVector) > 1)
 			// Instead of attacking all the tiles on the enemy's border it is
 			// typically better to make a deep drive into enemy land
-			scores["drive in enemy score"] = 0.04 * Btof(numAlliedNeighbors < 2)
+			scores["deep drive score"] = 0.04 * Btof(numAlliedNeighbors < 2)
 
 			totalScore := 0.
 			for _, score := range scores {
