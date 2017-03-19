@@ -27,7 +27,7 @@ const (
 // If we allow too few future moves, then slow network means we could miss turns
 // If we allow too many future moves, then bot is less adaptive to changing
 // conditions
-const MaxPlannedMoves = 8
+const MaxPlannedMoves = 5
 const NumGamesToPlay = 100
 
 func main() {
@@ -67,11 +67,11 @@ func main() {
 		}
 		done := false
 		game.Won = func() {
-			log.Println("============   Won game!  ================")
+			log.Println("===========================   Won game!  ============================")
 			done = true
 		}
 		game.Lost = func() {
-			log.Println("============   Lost game...  ============")
+			log.Println("============================   Lost game...  ========================")
 			done = true
 		}
 
@@ -352,7 +352,8 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 			scores["dist penalty"] = Truncate(-0.5*dist/30, -0.3, 0)
 			scores["dist gt army penalty"] = -0.2 * Btof(fromTile.Armies < int(dist))
 			scores["is enemy score"] = 0.05 * Btof(isEnemy)
-			scores["close city score"] = 0.25 * Btof(isCity) * math.Pow(distFromGen, -0.5)
+			scores["close city score"] = 0.35 * Btof(isCity && outnumber >= 2) *
+				math.Pow(distFromGen, -0.5)
 			scores["enemy city score"] = 0.2 * Btof(isCity && isEnemy)
 			scores["enemy gen score"] = 0.15 * Btof(isGeneral) * Btof(isEnemy)
 			scores["empty score"] = 0.08 * Btof(isEmpty)
