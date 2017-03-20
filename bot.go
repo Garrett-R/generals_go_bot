@@ -137,14 +137,8 @@ func logTurnData(g *gioframework.Game) {
 	log.Printf("Turn: %v (UI%v)", g.TurnCount, float64(g.TurnCount)/2.)
 
 	var msgs []string
-	for _, s := range g.Scores {
-		var playerName string
-		if s.Index == g.PlayerIndex {
-			playerName = "Me"
-		} else {
-			playerName = fmt.Sprintf("Opponent %v", s.Index)
-		}
-		msg := fmt.Sprintf("%10v: Tiles: %v, Army: %v", playerName, s.Tiles, s.Armies)
+	for i, s := range g.Scores {
+		msg := fmt.Sprintf("%10v: Tiles: %v, Army: %v", g.Usernames[i], s.Tiles, s.Armies)
 		msgs = append(msgs, msg)
 	}
 	sort.Strings(msgs)
