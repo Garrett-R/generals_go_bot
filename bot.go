@@ -79,6 +79,12 @@ func main() {
 		game.Start = func(playerIndex int, users []string) {
 			log.Println("Game started with ", users)
 			log.Printf("Replay available at: http://bot.generals.io/replays/%v", game.ReplayID)
+			for i, user := range users {
+				if i == playerIndex {
+					continue
+				}
+				game.SendChat(fmt.Sprintf("%v, prepare to be destroyed!", user))
+			}
 			started = true
 		}
 		done := false
@@ -448,6 +454,13 @@ func GetBestMove(game *gioframework.Game) (bestFrom int, bestTo int) {
 
 		log.Printf("Consolidating, with average army: %v", highestAvArmy)
 	}
+
+	// Trash talk
+	toTile := game.GameMap[bestTo]
+	if toTile.Type == gioframework.City && IsEnemy(game, toTile) {
+		game.SendChat("Sorry, I'm gonna need that citadel")
+	}
+
 	return bestFrom, bestTo
 }
 
