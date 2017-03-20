@@ -15,6 +15,7 @@ import (
 	"github.com/go-errors/errors"
 	"github.com/andyleap/gioframework"
 	"github.com/xarg/gopathfinding"
+	"os/signal"
 )
 
 const (
@@ -33,10 +34,25 @@ const NumGamesToPlay = 100
 func main() {
 	client, _ := gioframework.Connect("bot", os.Getenv("GENERALS_BOT_ID"), os.Getenv("GENERALS_BOT_NAME"))
 	go client.Run()
+
+	abort := false
+	ch := make(chan os.Signal)
+	signal.Notify(ch, os.Interrupt)
+	go func() {
+		<-ch
+		log.Println("abort set to true")
+		abort = true
+		<-ch
+		log.Println("ok leaving this function")
+		os.Exit(2)
+	}()
 	// Hack to help with race condition for setting name
 	time.Sleep(time.Second)
 
 	for i := 0; i < NumGamesToPlay; i++ {
+		if abort {
+			break
+		}
 		setupLogging()
 
 		log.Printf("---------- Game #%v/%v -----------", i+1, NumGamesToPlay)
