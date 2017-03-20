@@ -28,7 +28,7 @@ const (
 // If we allow too few future moves, then slow network means we could miss turns
 // If we allow too many future moves, then bot is less adaptive to changing
 // conditions
-const MaxPlannedMoves = 5
+const MaxPlannedMoves = 8
 const NumGamesToPlay = 100
 
 func main() {
